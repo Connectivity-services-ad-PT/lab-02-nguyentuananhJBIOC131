@@ -3,29 +3,29 @@ info:
   title: Smart Campus — IoT Ingestion API (Group A1)
   version: 1.0.0
   description: |
-    Hợp đồng API (Contract) cho dịch vụ IoT Ingestion - Nhóm A1.
-    Chịu trách nhiệm tiếp nhận dữ liệu đo đạc (telemetry) từ các cảm biến IoT và cung cấp dữ liệu này cho các dịch vụ khác (như Analytics - Nhóm A5).
+    Hợp đồng API cho dịch vụ IoT Ingestion. Cung cấp tính năng thu thập dữ liệu đo đạc,
+    xem chi tiết dữ liệu và nhận các sự kiện trạng thái từ thiết bị.
   contact:
     name: Nhóm A1 - Nguyễn Tuấn Anh
     email: student@example.edu.vn
 servers:
   - url: http://localhost:4010
     description: Prism mock server
-  - url: https://api.campus.local
-    description: Class network placeholder
 tags:
   - name: health
     description: Kiểm tra trạng thái service
   - name: telemetry
-    description: Quản lý tiếp nhận và cung cấp dữ liệu cảm biến
+    description: Quản lý dữ liệu cảm biến
+  - name: events
+    description: Quản lý sự kiện thiết bị
 security:
   - bearerAuth: []
 paths:
   /health:
     get:
       operationId: getHealth
-      summary: Kiểm tra trạng thái service
-      description: Endpoint kiểm tra service còn hoạt động.
+      summary: Kiểm tra trạng thái
+      description: Kiểm tra xem Ingestion Service có đang hoạt động bình thường không.
       tags: [health]
       security: []
       responses:
@@ -40,14 +40,13 @@ paths:
                   value:
                     status: ok
                     service: iot-ingestion-a1
-                    time: '2026-05-27T08:00:00Z'
+                    time: '2026-05-28T08:00:00Z'
 
   /api/v1/telemetry:
     post:
       operationId: ingestTelemetry
-      summary: Tiếp nhận dữ liệu từ thiết bị IoT
-      description: |
-        Endpoint cho phép các thiết bị hoặc IoT Gateway gửi dữ liệu đo đạc lên hệ thống.
+      summary: Tiếp nhận dữ liệu IoT
+      description: Endpoint cho phép các thiết bị IoT gửi dữ liệu đo đạc lên hệ thống.
       tags: [telemetry]
       requestBody:
         required: true
@@ -56,49 +55,45 @@ paths:
             schema:
               $ref: '#/components/schemas/TelemetryPayload'
             examples:
-              validRequest:
+              valid:
                 value:
                   device_id: SENSOR_A201_01
-                  timestamp: '2026-05-27T09:30:00Z'
+                  timestamp: '2026-05-28T09:30:00Z'
                   readings:
                     temperature: 26.5
                     humidity: 65.2
-                    co2: 850
       responses:
         '201':
           description: Dữ liệu đã được ghi nhận thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/IngestionResponse'
-              examples:
-                success:
-                  value:
-                    status: success
-                    message: Telemetry data ingested successfully
-                    reading_id: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                type: object
+                additionalProperties: false
+                required: [status, reading_id]
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  reading_id:
+                    type: string
+                    format: uuid
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
 
     get:
       operationId: getTelemetryHistory
-      summary: Lấy lịch sử dữ liệu cảm biến
-      description: Endpoint cung cấp dữ liệu thô cho các dịch vụ khác (ví dụ Analytics - A5) theo cơ chế phân trang.
+      summary: Lấy lịch sử dữ liệu
+      description: Trả về danh sách dữ liệu thô phục vụ cho Analytics.
       tags: [telemetry]
       parameters:
         - $ref: '#/components/parameters/Cursor'
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':
-          description: Danh sách dữ liệu cảm biến
+          description: Danh sách dữ liệu
           content:
             application/json:
               schema:
@@ -109,17 +104,76 @@ paths:
                     items:
                       - reading_id: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
                         device_id: SENSOR_A201_01
-                        timestamp: '2026-05-27T09:30:00Z'
+                        timestamp: '2026-05-28T09:30:00Z'
                         readings:
                           temperature: 26.5
-                          humidity: 65.2
-                        received_at: '2026-05-27T09:30:02Z'
+                        received_at: '2026-05-28T09:30:02Z'
                     nextCursor: null
                     hasMore: false
         '401':
           $ref: '#/components/responses/Unauthorized'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/telemetry/{reading_id}:
+    get:
+      operationId: getTelemetryById
+      summary: Lấy chi tiết 1 bản ghi đo đạc
+      description: Trả về chi tiết dữ liệu cảm biến dựa trên ID giao dịch.
+      tags: [telemetry]
+      parameters:
+        - name: reading_id
+          in: path
+          required: true
+          description: UUID của bản ghi đo đạc
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chi tiết bản ghi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryRecord'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/device-events:
+    post:
+      operationId: createDeviceEvent
+      summary: Ghi nhận sự kiện trạng thái thiết bị
+      description: Nhận cảnh báo (Online/Fault) từ thiết bị.
+      tags: [events]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceEvent'
+            examples:
+              faultEvent:
+                value:
+                  eventType: DEVICE_FAULT
+                  device_id: SENSOR_A201_01
+                  errorCode: ERR_SENSOR_BROKEN
+      responses:
+        '201':
+          description: Đã ghi nhận sự kiện
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: event_accepted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
   securitySchemes:
@@ -133,7 +187,7 @@ components:
       name: cursor
       in: query
       required: false
-      description: Cursor dùng để lấy trang tiếp theo.
+      description: Cursor phân trang
       schema:
         type: [string, 'null']
         minLength: 1
@@ -142,7 +196,7 @@ components:
       name: limit
       in: query
       required: false
-      description: Số bản ghi tối đa mỗi trang.
+      description: Số lượng bản ghi trên một trang
       schema:
         type: integer
         minimum: 1
@@ -158,15 +212,11 @@ components:
         status:
           type: string
           enum: [ok]
-          description: Trạng thái service.
-          example: ok
         service:
           type: string
-          example: iot-ingestion-a1
         time:
           type: string
           format: date-time
-          example: '2026-05-27T08:00:00Z'
 
     TelemetryPayload:
       type: object
@@ -177,39 +227,13 @@ components:
           type: string
           minLength: 3
           maxLength: 50
-          pattern: '^[A-Za-z0-9_-]+$'
-          description: Mã định danh thiết bị.
-          example: SENSOR_A201_01
         timestamp:
           type: string
           format: date-time
-          description: Thời gian thiết bị ghi nhận dữ liệu (UTC).
-          example: '2026-05-27T09:30:00Z'
         readings:
           type: object
           additionalProperties:
             type: number
-          description: Tập hợp các chỉ số đo đạc dạng key-value.
-          example:
-            temperature: 26.5
-            humidity: 65.2
-
-    IngestionResponse:
-      type: object
-      additionalProperties: false
-      required: [status, message, reading_id]
-      properties:
-        status:
-          type: string
-          example: success
-        message:
-          type: string
-          example: Telemetry data ingested successfully
-        reading_id:
-          type: string
-          format: uuid
-          description: Mã giao dịch/bản ghi do Ingestion sinh ra.
-          example: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
 
     TelemetryRecord:
       type: object
@@ -223,7 +247,6 @@ components:
           type: string
           minLength: 3
           maxLength: 50
-          pattern: '^[A-Za-z0-9_-]+$'
         timestamp:
           type: string
           format: date-time
@@ -234,7 +257,6 @@ components:
         received_at:
           type: string
           format: date-time
-          description: Thời gian server nhận được dữ liệu.
 
     TelemetryPage:
       type: object
@@ -249,6 +271,49 @@ components:
           type: [string, 'null']
         hasMore:
           type: boolean
+
+    DeviceEvent:
+      oneOf:
+        - $ref: '#/components/schemas/DeviceOnlineEvent'
+        - $ref: '#/components/schemas/DeviceFaultEvent'
+      discriminator:
+        propertyName: eventType
+        mapping:
+          DEVICE_ONLINE: '#/components/schemas/DeviceOnlineEvent'
+          DEVICE_FAULT: '#/components/schemas/DeviceFaultEvent'
+
+    DeviceOnlineEvent:
+      type: object
+      additionalProperties: false
+      required: [eventType, device_id, ip_address]
+      properties:
+        eventType:
+          type: string
+          const: DEVICE_ONLINE
+        device_id:
+          type: string
+          minLength: 3
+          maxLength: 50
+        ip_address:
+          type: string
+          format: ipv4
+
+    DeviceFaultEvent:
+      type: object
+      additionalProperties: false
+      required: [eventType, device_id, errorCode]
+      properties:
+        eventType:
+          type: string
+          const: DEVICE_FAULT
+        device_id:
+          type: string
+          minLength: 3
+          maxLength: 50
+        errorCode:
+          type: string
+          minLength: 2
+          maxLength: 50
 
     Problem:
       type: object
@@ -282,7 +347,7 @@ components:
 
   responses:
     BadRequest:
-      description: Dữ liệu sai định dạng
+      description: Dữ liệu không hợp lệ
       content:
         application/problem+json:
           schema:
@@ -291,32 +356,17 @@ components:
             type: https://campus.local/errors/validation
             title: Dữ liệu không hợp lệ
             status: 400
-            detail: Payload bị thiếu trường bắt buộc
+            detail: Payload không hợp lệ
             instance: /api/v1/telemetry
-            errors:
-              - field: device_id
-                code: MISSING_FIELD
-                message: device_id is required
+            errors: []
     Unauthorized:
-      description: Thiếu hoặc sai thông tin xác thực
+      description: Thiếu xác thực
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
-    UnprocessableEntity:
-      description: Dữ liệu đúng định dạng JSON nhưng vi phạm nghiệp vụ
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
-    TooManyRequests:
-      description: Vượt quá giới hạn gọi API (Rate Limiting)
-      content:
-        application/problem+json:
-          schema:
-            $ref: '#/components/schemas/Problem'
-    InternalServerError:
-      description: Lỗi hệ thống
+    NotFound:
+      description: Không tìm thấy tài nguyên
       content:
         application/problem+json:
           schema:
