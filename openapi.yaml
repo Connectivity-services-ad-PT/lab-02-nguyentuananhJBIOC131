@@ -108,8 +108,8 @@ paths:
                         readings:
                           temperature: 26.5
                         received_at: '2026-05-28T09:30:02Z'
-                    nextCursor: null
-                    hasMore: false
+                    nextCursor: "eyJvZmZzZXQiOjEwMH0="
+                    hasMore: true
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -189,7 +189,7 @@ components:
       required: false
       description: Cursor phân trang
       schema:
-        type: [string, 'null']
+        type: ["string", "null"]
         minLength: 1
         maxLength: 200
     Limit:
@@ -268,19 +268,20 @@ components:
           items:
             $ref: '#/components/schemas/TelemetryRecord'
         nextCursor:
-          type: [string, 'null']
+          type: ["string", "null"]
         hasMore:
           type: boolean
 
     DeviceEvent:
-      oneOf:
-        - $ref: '#/components/schemas/DeviceOnlineEvent'
-        - $ref: '#/components/schemas/DeviceFaultEvent'
+      type: object
       discriminator:
         propertyName: eventType
         mapping:
           DEVICE_ONLINE: '#/components/schemas/DeviceOnlineEvent'
           DEVICE_FAULT: '#/components/schemas/DeviceFaultEvent'
+      oneOf:
+        - $ref: '#/components/schemas/DeviceOnlineEvent'
+        - $ref: '#/components/schemas/DeviceFaultEvent'
 
     DeviceOnlineEvent:
       type: object
@@ -289,7 +290,7 @@ components:
       properties:
         eventType:
           type: string
-          const: DEVICE_ONLINE
+          enum: [DEVICE_ONLINE]
         device_id:
           type: string
           minLength: 3
@@ -305,7 +306,7 @@ components:
       properties:
         eventType:
           type: string
-          const: DEVICE_FAULT
+          enum: [DEVICE_FAULT]
         device_id:
           type: string
           minLength: 3
@@ -328,9 +329,9 @@ components:
         status:
           type: integer
         detail:
-          type: [string, 'null']
+          type: ["string", "null"]
         instance:
-          type: [string, 'null']
+          type: ["string", "null"]
         errors:
           type: array
           items:
